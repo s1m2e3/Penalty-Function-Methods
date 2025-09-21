@@ -48,8 +48,8 @@ def rbf_features_ddh(x,centers,sigma):
 
 
 num_hidden = 10
-A = 2
-eta = 0.0005
+A = 5
+eta = 0.01
 x_min = 0
 x_max = 100
 x = torch.arange(x_min,x_max,0.1).float().unsqueeze(1).T
@@ -66,7 +66,7 @@ offset_range = 5  # controls spread around base center
 offsets = torch.linspace(-offset_range, offset_range, num_centers).unsqueeze(0)  # (1, R)
 displaced_centers = centers + offsets
 
-sigma = torch.abs(torch.randn(num_hidden,1)) * 0.01  # broader, safer
+sigma = torch.abs(torch.randn(num_hidden,1)) * 0.1  # broader, safer
 sigma = sigma.repeat(1,num_centers)
 
 H = rbf_features(x,displaced_centers,sigma)
@@ -78,11 +78,11 @@ j = torch.arange(num_hidden).unsqueeze(0)
 bandwidth = 1.5
 
 mask = torch.exp(-((i - j)**2) / (2 * bandwidth**2))  # (10, 10)
-Bx = mask.unsqueeze(0) * torch.randn(1, num_hidden, num_hidden)*10
-By = mask.unsqueeze(0) * torch.randn(1, num_hidden, num_hidden)*10
+Bx = mask.unsqueeze(0) * torch.randn(1, num_hidden, num_hidden)*1.5
+By = mask.unsqueeze(0) * torch.randn(1, num_hidden, num_hidden)*1.5
 
-x0 = torch.einsum('njk,mjk->i',H,Bx).unsqueeze(1)
-y0 = torch.einsum('njk,mjk->i',H,By).unsqueeze(1)
+x0 = torch.einsum('njk,mjk->n',H,Bx).unsqueeze(1)
+y0 = torch.einsum('njk,mjk->n',H,By).unsqueeze(1)
 
 a = 3
 functions = {'g0':{},"Bx":{0:Bx},'By':{0:By},'x':{0:x0},'y':{0:y0}}
@@ -107,18 +107,19 @@ functions['g0'][3]['dBx']=-H
 functions['g0'][3]['dBy']=-H
 
 functions['phi0']={}
-
 functions['phi0'][0]={}
-functions['phi0'][0]['d0']=phi(functions['g0'][0]['d0']).sum()
+functions['phi0'][0]['d0']=torch.where(phi(functions['g0'][0]['d0'])>1,phi(functions['g0'][0]['d0']),torch.zeros_like(phi(functions['g0'][0]['d0']))).sum()
+
 functions['phi0'][0]['dBx']=functions['g0'][0]['dBx'].sum(dim=0)*functions['phi0'][0]['d0']
 functions['phi0'][0]['d2Bx']=torch.einsum("nij,nkl->ijkl", functions['g0'][0]['dBx'], functions['g0'][0]['dBx'])*functions['phi0'][0]['d0']
+
 functions['phi0'][0]['dBxdBy']=torch.einsum("nij,nkl->ijkl", functions['g0'][0]['dBx'], functions['g0'][0]['dBy'])*functions['phi0'][0]['d0']
 functions['phi0'][0]['dBy']=functions['g0'][0]['dBy'].sum(dim=0)*functions['phi0'][0]['d0']
 functions['phi0'][0]['d2By']=torch.einsum("nij,nkl->ijkl", functions['g0'][0]['dBy'], functions['g0'][0]['dBy'])*functions['phi0'][0]['d0']
 functions['phi0'][0]['dBydBx']=torch.einsum("nij,nkl->ijkl", functions['g0'][0]['dBy'], functions['g0'][0]['dBx'])*functions['phi0'][0]['d0']
 
 functions['phi0'][1]={}
-functions['phi0'][1]['d0']=phi(functions['g0'][1]['d0']).sum()
+functions['phi0'][1]['d0']=torch.where(phi(functions['g0'][1]['d0'])>1,phi(functions['g0'][1]['d0']),torch.zeros_like(phi(functions['g0'][1]['d0']))).sum()
 functions['phi0'][1]['dBx']=functions['g0'][1]['dBx'].sum(dim=0)*functions['phi0'][1]['d0']
 functions['phi0'][1]['d2Bx']=torch.einsum("nij,nkl->ijkl", functions['g0'][1]['dBx'], functions['g0'][1]['dBx'])*functions['phi0'][1]['d0']
 functions['phi0'][1]['dBxdBy']=torch.einsum("nij,nkl->ijkl", functions['g0'][1]['dBx'], functions['g0'][1]['dBy'])*functions['phi0'][1]['d0']
@@ -127,7 +128,7 @@ functions['phi0'][1]['d2By']=torch.einsum("nij,nkl->ijkl", functions['g0'][1]['d
 functions['phi0'][1]['dBydBx']=torch.einsum("nij,nkl->ijkl", functions['g0'][1]['dBy'], functions['g0'][1]['dBx'])*functions['phi0'][1]['d0']
 
 functions['phi0'][2]={}
-functions['phi0'][2]['d0']=phi(functions['g0'][2]['d0']).sum()
+functions['phi0'][2]['d0']=torch.where(phi(functions['g0'][2]['d0'])>1,phi(functions['g0'][2]['d0']),torch.zeros_like(phi(functions['g0'][2]['d0']))).sum()
 functions['phi0'][2]['dBx']=functions['g0'][2]['dBx'].sum(dim=0)*functions['phi0'][2]['d0']
 functions['phi0'][2]['d2Bx']=torch.einsum("nij,nkl->ijkl", functions['g0'][2]['dBx'], functions['g0'][2]['dBx'])*functions['phi0'][2]['d0']
 functions['phi0'][2]['dBxdBy']=torch.einsum("nij,nkl->ijkl", functions['g0'][2]['dBx'], functions['g0'][2]['dBy'])*functions['phi0'][2]['d0']
@@ -136,7 +137,7 @@ functions['phi0'][2]['d2By']=torch.einsum("nij,nkl->ijkl", functions['g0'][2]['d
 functions['phi0'][2]['dBydBx']=torch.einsum("nij,nkl->ijkl", functions['g0'][2]['dBy'], functions['g0'][2]['dBx'])*functions['phi0'][2]['d0']
 
 functions['phi0'][3]={}
-functions['phi0'][3]['d0']=phi(functions['g0'][3]['d0']).sum()
+functions['phi0'][3]['d0']=torch.where(phi(functions['g0'][3]['d0'])>1,phi(functions['g0'][3]['d0']),torch.zeros_like(phi(functions['g0'][3]['d0']))).sum()
 functions['phi0'][3]['dBx']=functions['g0'][3]['dBx'].sum(dim=0)*functions['phi0'][3]['d0']
 functions['phi0'][3]['d2Bx']=torch.einsum("nij,nkl->ijkl", functions['g0'][3]['dBx'], functions['g0'][3]['dBx'])*functions['phi0'][3]['d0']
 functions['phi0'][3]['dBxdBy']=torch.einsum("nij,nkl->ijkl", functions['g0'][3]['dBx'], functions['g0'][3]['dBy'])*functions['phi0'][3]['d0']
@@ -144,48 +145,137 @@ functions['phi0'][3]['dBy']=functions['g0'][3]['dBy'].sum(dim=0)*functions['phi0
 functions['phi0'][3]['d2By']=torch.einsum("nij,nkl->ijkl", functions['g0'][3]['dBy'], functions['g0'][3]['dBy'])*functions['phi0'][3]['d0']
 functions['phi0'][3]['dBydBx']=torch.einsum("nij,nkl->ijkl", functions['g0'][3]['dBy'], functions['g0'][3]['dBx'])*functions['phi0'][3]['d0']
 
-functions['update']={0:{}}
-functions['update'][0]['Bx']={}
-functions['update'][0]['Bx']['d0']=sum([functions['phi0'][i]['dBx'] for i in range(len(functions['phi0']))]).reshape_as(Bx)
-functions['update'][0]['Bx']['dBx']=sum([functions['phi0'][i]['d2Bx'] for i in range(len(functions['phi0']))])
-functions['update'][0]['Bx']['dBy']=sum([functions['phi0'][i]['dBxdBy'] for i in range(len(functions['phi0']))])
-functions['update'][0]['By']={}
-functions['update'][0]['By']['d0']=sum([functions['phi0'][i]['dBy'] for i in range(len(functions['phi0']))]).reshape_as(By)
-functions['update'][0]['By']['dBx']=sum([functions['phi0'][i]['dBydBx'] for i in range(len(functions['phi0']))])
-functions['update'][0]['By']['dBy']=sum([functions['phi0'][i]['d2By'] for i in range(len(functions['phi0']))])
+functions['update0']={'Bx':{},'By':{}}
+functions['update0']['Bx']['d0']=sum([functions['phi0'][i]['dBx'] for i in range(len(functions['phi0']))]).reshape_as(Bx)
 
+functions['update0']['Bx']['dBx']=sum([functions['phi0'][i]['d2Bx'] for i in range(len(functions['phi0']))])
+functions['update0']['Bx']['dBy']=sum([functions['phi0'][i]['dBxdBy'] for i in range(len(functions['phi0']))])
+functions['update0']['By']['d0']=sum([functions['phi0'][i]['dBy'] for i in range(len(functions['phi0']))]).reshape_as(By)
+functions['update0']['By']['dBx']=sum([functions['phi0'][i]['dBydBx'] for i in range(len(functions['phi0']))])
+functions['update0']['By']['dBy']=sum([functions['phi0'][i]['d2By'] for i in range(len(functions['phi0']))])
 
-functions['Bx'][1]=functions['Bx'][0]-eta*functions['update'][0]['Bx']['d0']
-functions['By'][1]=functions['By'][0]-eta*functions['update'][0]['By']['d0']
+functions['Bx'][1]=functions['Bx'][0]-A*eta*torch.tanh(eta*functions['update0']['Bx']['d0']/A)
+functions['By'][1]=functions['By'][0]-A*eta*torch.tanh(eta*functions['update0']['By']['d0']/A)
 functions['x'][1]=torch.einsum('ijk,ijk->i',H,functions['Bx'][1]).unsqueeze(1)
 functions['y'][1]=torch.einsum('ijk,ijk->i',H,functions['By'][1]).unsqueeze(1)
-print(torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBx'],functions['update'][0]['Bx']['dBx']).shape)
-input('hipi')
+
+functions['g1']={}
 functions['g1'][0]={}
 functions['g1'][0]['d0']=g(functions['x'][1]+functions['y'][1],a)
-functions['g1'][0]['dBx']=functions['g0'][0]['dBx']-torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBx']@functions['update'][0]['Bx']['dBx'])
-functions['g1'][0]['dBy']=H
+functions['g1'][0]['dBx']=functions['g0'][0]['dBx']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBx'],functions['update0']['Bx']['dBx'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBy'],functions['update0']['By']['dBx'])
+functions['g1'][0]['dBy']=functions['g0'][0]['dBy']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBy'],functions['update0']['By']['dBy'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][0]['dBx'],functions['update0']['Bx']['dBy'])
 
-# functions['g1'][1]={}
-# functions['g1'][1]['d0']=g(functions['x'][1]-functions['y'][1],a)
-# functions['g1'][1]['dBx']=H
-# functions['g1'][1]['dBy']=-H
+functions['g1'][1]={}
+functions['g1'][1]['d0']=g(functions['x'][1]-functions['y'][1],a)
+functions['g1'][1]['dBx']=functions['g0'][1]['dBx']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][1]['dBx'],functions['update0']['Bx']['dBx'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][1]['dBy'],functions['update0']['By']['dBx'])
+functions['g1'][1]['dBy']=functions['g0'][1]['dBy']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][1]['dBy'],functions['update0']['By']['dBy'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][1]['dBx'],functions['update0']['Bx']['dBy'])
 
-# functions['g1'][2]={}
-# functions['g1'][2]['d0']=g(-functions['x'][1]+functions['y'][1],a)
-# functions['g1'][2]['dBx']=-H
-# functions['g1'][2]['dBy']=H
+functions['g1'][2]={}
+functions['g1'][2]['d0']=g(-functions['x'][1]+functions['y'][1],a)
+functions['g1'][2]['dBx']=functions['g0'][2]['dBx']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][2]['dBx'],functions['update0']['Bx']['dBx'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][2]['dBy'],functions['update0']['By']['dBx'])
+functions['g1'][2]['dBy']=functions['g0'][2]['dBy']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][2]['dBy'],functions['update0']['By']['dBy'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][2]['dBx'],functions['update0']['Bx']['dBy'])
 
-# functions['g1'][3]={}
-# functions['g1'][3]['d0']=(g(-functions['x'][1]-functions['y'][1],a))
-# functions['g1'][3]['dBx']=-H
-# functions['g1'][3]['dBy']=-H
+functions['g1'][3]={}
+functions['g1'][3]['d0']=g(-functions['x'][1]-functions['y'][1],a)
+functions['g1'][3]['dBx']=functions['g0'][3]['dBx']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][3]['dBx'],functions['update0']['Bx']['dBx'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][3]['dBy'],functions['update0']['By']['dBx'])
+functions['g1'][3]['dBy']=functions['g0'][3]['dBy']-eta*torch.einsum("nij,klmo->nmo",functions['g0'][3]['dBy'],functions['update0']['By']['dBy'])-eta*torch.einsum("nij,klmo->nmo",functions['g0'][3]['dBx'],functions['update0']['Bx']['dBy'])
 
+functions['phi1']={}
+functions['phi1'][0]={}
+functions['phi1'][0]['d0']=torch.where(functions['g1'][0]['d0']>1,functions['g1'][0]['d0'],torch.zeros_like(functions['g1'][0]['d0'])).sum()
+functions['phi1'][0]['dBx']=-functions['g1'][0]['dBx'].sum(dim=0)*functions['phi1'][0]['d0']
+functions['phi1'][0]['dBy']=-functions['g1'][0]['dBy'].sum(dim=0)*functions['phi1'][0]['d0']
 
+functions['phi1'][1]={}
+functions['phi1'][1]['d0']=torch.where(functions['g1'][1]['d0']>1,functions['g1'][1]['d0'],torch.zeros_like(functions['g1'][1]['d0'])).sum()
+functions['phi1'][1]['dBx']=-functions['g1'][1]['dBx'].sum(dim=0)*functions['phi1'][1]['d0']
+functions['phi1'][1]['dBy']=-functions['g1'][1]['dBy'].sum(dim=0)*functions['phi1'][1]['d0']
 
+functions['phi1'][2]={}
+functions['phi1'][2]['d0']=torch.where(functions['g1'][2]['d0']>1,functions['g1'][2]['d0'],torch.zeros_like(functions['g1'][2]['d0'])).sum()
+functions['phi1'][2]['dBx']=-functions['g1'][2]['dBx'].sum(dim=0)*functions['phi1'][2]['d0']
+functions['phi1'][2]['dBy']=-functions['g1'][2]['dBy'].sum(dim=0)*functions['phi1'][2]['d0'] 
 
+functions['phi1'][3]={}
+functions['phi1'][3]['d0']=torch.where(functions['g1'][3]['d0']>1,functions['g1'][3]['d0'],torch.zeros_like(functions['g1'][3]['d0'])).sum()
+functions['phi1'][3]['dBx']=-functions['g1'][3]['dBx'].sum(dim=0)*functions['phi1'][3]['d0']
+functions['phi1'][3]['dBy']=-functions['g1'][3]['dBy'].sum(dim=0)*functions['phi1'][3]['d0']
 
+functions['update1']={'Bx':{},'By':{}}
+functions['update1']['Bx']['d0']=sum([functions['phi1'][i]['dBx'] for i in range(len(functions['phi1']))]).reshape_as(Bx)
+functions['update1']['By']['d0']=sum([functions['phi1'][i]['dBy'] for i in range(len(functions['phi1']))]).reshape_as(Bx)
 
+functions['Bx'][2]=functions['Bx'][1]-0.3*eta*A*torch.tanh(eta*functions['update1']['Bx']['d0']/A)
+functions['By'][2]=functions['By'][1]-0.3*eta*A*torch.tanh(eta*functions['update1']['By']['d0']/A)
+functions['x'][2]=torch.einsum('ijk,ijk->i',H,functions['Bx'][2]).unsqueeze(1)
+functions['y'][2]=torch.einsum('ijk,ijk->i',H,functions['By'][2]).unsqueeze(1)
+
+functions['g2']={}
+functions['g2'][0]={}
+functions['g2'][0]['d0']=g(functions['x'][2]+functions['y'][2],a)
+
+functions['g2'][1]={}
+functions['g2'][1]['d0']=g(functions['x'][2]-functions['y'][2],a)
+
+functions['g2'][2]={}
+functions['g2'][2]['d0']=g(-functions['x'][2]+functions['y'][2],a)
+
+functions['g2'][3]={}
+functions['g2'][3]['d0']=g(-functions['x'][2]-functions['y'][2],a)
+
+# plt.plot(functions['x'][0].detach().numpy(),functions['y'][0].detach().numpy())
+
+fig,axs = plt.subplots(4,1,figsize=(8,8))
+axs[0].plot(x.T.detach().numpy(),torch.exp(functions['g0'][0]['d0']).detach().numpy(),alpha=0.5,color='blue')
+axs[0].plot(x.T.detach().numpy(),torch.exp(functions['g1'][0]['d0']).detach().numpy(),alpha=0.5,color='green')
+axs[0].plot(x.T.detach().numpy(),torch.exp(functions['g2'][0]['d0']).detach().numpy(),alpha=0.5,color='red')
+axs[1].plot(x.T.detach().numpy(),torch.exp(functions['g0'][1]['d0']).detach().numpy(),alpha=0.5,color='blue')
+axs[1].plot(x.T.detach().numpy(),torch.exp(functions['g1'][1]['d0']).detach().numpy(),alpha=0.5,color='green')
+axs[1].plot(x.T.detach().numpy(),torch.exp(functions['g2'][1]['d0']).detach().numpy(),alpha=0.5,color='red')
+axs[2].plot(x.T.detach().numpy(),torch.exp(functions['g0'][2]['d0']).detach().numpy(),alpha=0.5,color='blue')
+axs[2].plot(x.T.detach().numpy(),torch.exp(functions['g1'][2]['d0']).detach().numpy(),alpha=0.5,color='green')
+axs[2].plot(x.T.detach().numpy(),torch.exp(functions['g2'][2]['d0']).detach().numpy(),alpha=0.5,color='red')
+axs[3].plot(x.T.detach().numpy(),torch.exp(functions['g0'][3]['d0']).detach().numpy(),alpha=0.5,color='blue')
+axs[3].plot(x.T.detach().numpy(),torch.exp(functions['g1'][3]['d0']).detach().numpy(),alpha=0.5,color='green')
+axs[3].plot(x.T.detach().numpy(),torch.exp(functions['g2'][3]['d0']).detach().numpy(),alpha=0.5,color='red')
+plt.show()
+
+fig,axs = plt.subplots(3,1,figsize=(8,8))
+axs[0].plot(x.T.detach().numpy(),sum([torch.exp(functions['g0'][i]['d0']) for i in range(len(functions['g0']))]).detach().numpy(),color='blue')
+axs[0].plot(x.T.detach().numpy(),sum([torch.exp(functions['g1'][i]['d0']) for i in range(len(functions['g1']))]).detach().numpy(),color='green')
+axs[0].plot(x.T.detach().numpy(),sum([torch.exp(functions['g2'][i]['d0']) for i in range(len(functions['g2']))]).detach().numpy(),color='red')
+axs[0].set_title('Sum of exp(g0), exp(g1), exp(g2)')
+axs[1].plot(x.T.detach().numpy(),functions['x'][0].detach().numpy(),color='blue')
+axs[1].plot(x.T.detach().numpy(),functions['x'][1].detach().numpy(),color='green')
+axs[1].plot(x.T.detach().numpy(),functions['x'][2].detach().numpy(),color='red')
+axs[1].set_title('x0, x1, x2')
+axs[2].plot(x.T.detach().numpy(),functions['y'][0].detach().numpy(),color='blue')
+axs[2].plot(x.T.detach().numpy(),functions['y'][1].detach().numpy(),color='green')
+axs[2].plot(x.T.detach().numpy(),functions['y'][2].detach().numpy(),color='red')
+axs[2].set_title('y0, y1, y2')
+plt.tight_layout()
+plt.show()
+# Define the vertices of the rhomboid (diamond shape)
+vertices = np.array([
+    [0, 3],   # top
+    [3, 0],   # right
+    [0, -3],  # bottom
+    [-3, 0],  # left
+])
+
+# Close the polygon by repeating the first point
+vertices = np.vstack([vertices, vertices[0]])
+# Plot
+plt.plot(vertices[:, 0], vertices[:, 1], 'r-', linewidth=2)
+plt.fill(vertices[:, 0], vertices[:, 1], alpha=0.2, color='yellow', label='Feasible Region')
+plt.plot(functions['x'][0].detach().numpy(),functions['y'][0].detach().numpy(),alpha=0.5,color='blue')
+plt.plot(functions['x'][1].detach().numpy(),functions['y'][1].detach().numpy(),alpha=0.5,color='green')
+plt.plot(functions['x'][2].detach().numpy(),functions['y'][2].detach().numpy(),alpha=0.5,color='red')
+plt.xlim([-8, 8])
+plt.ylim([-8, 8])
+plt.xlabel('x')
+plt.ylabel('y')
+plt.show()
 
     # a = torch.tensor([3],dtype=torch.float)
     
