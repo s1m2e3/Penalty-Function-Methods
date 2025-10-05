@@ -14,7 +14,7 @@ a_2=torch.tensor([1.0,0.0]).float().to(device)
 a_3=torch.tensor([0.0,1.0]).float().to(device)
 # a_4 = torch.tensor([-1.0,1.0]).float()
 
-num_grad_steps = 100
+num_grad_steps = 1
 num_functional_grad_steps = 1000
 num_trajectory_steps = 10
 num_sampled_weights = 3
@@ -26,10 +26,10 @@ fig,axs = plt.subplots(3,1,figsize=(12,15),sharex=True)
 fig.suptitle("Constrained Output Trajectories Across Vector-Space Optimization with Different Random Weights",fontsize=16,fontweight='bold')
 
 t_title_function = "Trajectory Timestep"
-x_title_function = r"$f_{\theta}^{1}-f^1_{target}$"
-y_title_function = r"$f_{\theta}^{2}-f^2_{target}$"
+x_title_function = r"$f_{\theta}^{1}$"
+y_title_function = r"$f_{\theta}^{2}$"
 xy_title_function = r"$f_{\theta}^{1}+f_{\theta}^{2}$"
-lambda_ = 1
+lambda_ = 5
 lines = {}
 for i in range(num_sampled_weights):
     total_sampled_h_0 = torch.rand([num_samples,2]).float().to(device)
@@ -61,54 +61,56 @@ for i in range(num_sampled_weights):
             lambda_ = 1
             for j in range(num_functional_grad_steps):
                     
-                penalty_1 = torch.nn.functional.softplus(h_1@a_1.unsqueeze(1)-1,beta=lambda_)
-                h_1 = torch.where(penalty_1>0.6,h_1+functional_gradient(h_1,a_1,eta,lambda_),h_1)
+                # penalty_1 = torch.nn.functional.softplus(h_1@a_1.unsqueeze(1)-1,beta=lambda_)
+                h_1 = torch.where((h_1@a_1.unsqueeze(1)-1)>0.0,h_1+functional_gradient(h_1,a_1,eta,lambda_),h_1)
 
-                penalty_2 = torch.nn.functional.softplus(-h_1@a_2.unsqueeze(1),beta=lambda_)
-                h_1 = torch.where(penalty_2>0.6,h_1-functional_gradient(-h_1,a_2,eta,lambda_),h_1)
+                # penalty_2 = torch.nn.functional.softplus(-h_1@a_2.unsqueeze(1),beta=lambda_)
+                h_1 = torch.where((-h_1@a_2.unsqueeze(1))>0.0,h_1-functional_gradient(-h_1,a_2,eta,lambda_),h_1)
 
-                penalty_3 = torch.nn.functional.softplus(-h_1@a_3.unsqueeze(1),beta=lambda_)
-                h_1 = torch.where(penalty_3>0.6,h_1-functional_gradient(-h_1,a_3,eta,lambda_),h_1)
+                # penalty_3 = torch.nn.functional.softplus(-h_1@a_3.unsqueeze(1),beta=lambda_)
+                h_1 = torch.where((-h_1@a_3.unsqueeze(1))>0.0,h_1-functional_gradient(-h_1,a_3,eta,lambda_),h_1)
                 
-                if torch.all(penalty_1<0.6).item() and torch.all(penalty_2<0.6).item() and torch.all(penalty_3<0.6).item():
+                if torch.all((h_1@a_1.unsqueeze(1)-1)<0.0).item()\
+                    and torch.all((-h_1@a_2.unsqueeze(1))<0.0).item() and \
+                        torch.all((-h_1@a_3.unsqueeze(1))<0.0).item():
                     print('break functional gradient loop')
                     break
                 # penalty = torch.nn.functional.softplus(h_1@a_4.unsqueeze(1)-1,beta=lambda_)
                 # h_1 = torch.where(penalty>0.13,h_1+functional_gradient(h_1,a_4,eta,lambda_),h_1)
                 eta = eta*0.999
                 lambda_ = lambda_*1.1
-            loss = torch.nn.functional.mse_loss(h_1,(torch.ones_like(h_1)*0.4).to(device)) + loss
+            # loss = torch.nn.functional.mse_loss(h_1,(torch.ones_like(h_1)*0.4).to(device)) + loss
         
             if grad_step == num_grad_steps-1:
                 lines[i][t] = h_1
             h_0 = h_1
             # loss = torch.nn.functional.mse_loss(h_1,(torch.ones_like(h_1)*0.4).to(device)) + loss
         # loss = torch.nn.functional.mse_loss(h_1,(torch.ones_like(h_1)*0.4).to(device))
-        grad_W_x = torch.autograd.grad(loss,W_x,retain_graph=True)
-        W_x = (W_x - eta_gradient*grad_W_x[0].clip(-1,1)).clip(-3,3)
-        grad_W_h = torch.autograd.grad(loss,W_h,retain_graph=True)
-        W_h = (W_h - eta_gradient*grad_W_h[0].clip(-1,1)).clip(-3,3)
-        grad_b_x = torch.autograd.grad(loss,b_x,retain_graph=True)
-        b_x = (b_x - eta_gradient*grad_b_x[0].clip(-1,1)).clip(-3,3)
-        grad_b_h = torch.autograd.grad(loss,b_h,retain_graph=True)
-        b_h = (b_h - eta_gradient*grad_b_h[0].clip(-1,1)).clip(-3,3)
-        grad_W_x_1 = torch.autograd.grad(loss,W_x_1,retain_graph=True)
-        W_x_1 = (W_x_1 - eta_gradient*grad_W_x_1[0].clip(-1,1)).clip(-3,3)
-        grad_W_x_2 = torch.autograd.grad(loss,W_x_2,retain_graph=True)
-        W_x_2 = (W_x_2 - eta_gradient*grad_W_x_2[0].clip(-1,1)).clip(-3,3)
-        grad_b_x_1 = torch.autograd.grad(loss,b_x_1,retain_graph=True)
-        b_x_1 = (b_x_1 - eta_gradient*grad_b_x_1[0].clip(-1,1)).clip(-3,3)
-        grad_b_x_2 = torch.autograd.grad(loss,b_x_2,retain_graph=True)
-        b_x_2 = (b_x_2 - eta_gradient*grad_b_x_2[0].clip(-1,1)).clip(-3,3)
-        grad_W_h_1 = torch.autograd.grad(loss,W_h_1,retain_graph=True)
-        W_h_1 = (W_h_1 - eta_gradient*grad_W_h_1[0].clip(-1,1)).clip(-3,3)
-        grad_W_h_2 = torch.autograd.grad(loss,W_h_2,retain_graph=True)
-        W_h_2 = (W_h_2 - eta_gradient*grad_W_h_2[0].clip(-1,1)).clip(-3,3)
-        grad_b_h_1 = torch.autograd.grad(loss,b_h_1,retain_graph=True)
-        b_h_1 = (b_h_1 - eta_gradient*grad_b_h_1[0].clip(-1,1)).clip(-3,3)
-        grad_b_h_2 = torch.autograd.grad(loss,b_h_2)
-        b_h_2 = (b_h_2 - eta_gradient*grad_b_h_2[0].clip(-1,1)).clip(-3,3)
-        print("in vector-space gradient descent iteration",grad_step,"loss is",loss)
+        # grad_W_x = torch.autograd.grad(loss,W_x,retain_graph=True)
+        # W_x = (W_x - eta_gradient*grad_W_x[0].clip(-1,1)).clip(-3,3)
+        # grad_W_h = torch.autograd.grad(loss,W_h,retain_graph=True)
+        # W_h = (W_h - eta_gradient*grad_W_h[0].clip(-1,1)).clip(-3,3)
+        # grad_b_x = torch.autograd.grad(loss,b_x,retain_graph=True)
+        # b_x = (b_x - eta_gradient*grad_b_x[0].clip(-1,1)).clip(-3,3)
+        # grad_b_h = torch.autograd.grad(loss,b_h,retain_graph=True)
+        # b_h = (b_h - eta_gradient*grad_b_h[0].clip(-1,1)).clip(-3,3)
+        # grad_W_x_1 = torch.autograd.grad(loss,W_x_1,retain_graph=True)
+        # W_x_1 = (W_x_1 - eta_gradient*grad_W_x_1[0].clip(-1,1)).clip(-3,3)
+        # grad_W_x_2 = torch.autograd.grad(loss,W_x_2,retain_graph=True)
+        # W_x_2 = (W_x_2 - eta_gradient*grad_W_x_2[0].clip(-1,1)).clip(-3,3)
+        # grad_b_x_1 = torch.autograd.grad(loss,b_x_1,retain_graph=True)
+        # b_x_1 = (b_x_1 - eta_gradient*grad_b_x_1[0].clip(-1,1)).clip(-3,3)
+        # grad_b_x_2 = torch.autograd.grad(loss,b_x_2,retain_graph=True)
+        # b_x_2 = (b_x_2 - eta_gradient*grad_b_x_2[0].clip(-1,1)).clip(-3,3)
+        # grad_W_h_1 = torch.autograd.grad(loss,W_h_1,retain_graph=True)
+        # W_h_1 = (W_h_1 - eta_gradient*grad_W_h_1[0].clip(-1,1)).clip(-3,3)
+        # grad_W_h_2 = torch.autograd.grad(loss,W_h_2,retain_graph=True)
+        # W_h_2 = (W_h_2 - eta_gradient*grad_W_h_2[0].clip(-1,1)).clip(-3,3)
+        # grad_b_h_1 = torch.autograd.grad(loss,b_h_1,retain_graph=True)
+        # b_h_1 = (b_h_1 - eta_gradient*grad_b_h_1[0].clip(-1,1)).clip(-3,3)
+        # grad_b_h_2 = torch.autograd.grad(loss,b_h_2)
+        # b_h_2 = (b_h_2 - eta_gradient*grad_b_h_2[0].clip(-1,1)).clip(-3,3)
+        print("in vector-space gradient descent iteration",grad_step,"loss is",loss,'iterations is', i)
         
 # Define the vertices of the rhomboid (diamond shape)
 vertices = np.array([
@@ -127,18 +129,19 @@ colors = ['r','b','g']
 for i in range(len(lines)):
     resulting_data=torch.stack([lines[i][j] for j in range(len(lines[i]))])
     for j in range(resulting_data.shape[1]):
-        axs[0].plot(np.arange(resulting_data.shape[0]),((resulting_data[:,j,0]-0.4)).cpu().detach().numpy(),color=colors[i-1])
+        axs[0].plot(np.arange(resulting_data.shape[0]),((resulting_data[:,j,0])).cpu().detach().numpy(),color=colors[i-1])
         axs[0].hlines(1, xmin=0, xmax=resulting_data.shape[0]-1, colors='black', linestyles='dashed')
-        axs[1].plot(np.arange(resulting_data.shape[0]),((resulting_data[:,j,1]-0.4)).cpu().detach().numpy(),color=colors[i-1])
+        axs[1].plot(np.arange(resulting_data.shape[0]),((resulting_data[:,j,1])).cpu().detach().numpy(),color=colors[i-1])
         axs[1].hlines(1, xmin=0, xmax=resulting_data.shape[0]-1, colors='black', linestyles='dashed')
         axs[2].plot(np.arange(resulting_data.shape[0]),(resulting_data[:,j,0]+resulting_data[:,j,1]).cpu().detach().numpy(),color=colors[i-1])
         axs[2].hlines(1, xmin=0, xmax=resulting_data.shape[0]-1, colors='black', linestyles='dashed')
 
 axs[0].set_ylabel(x_title_function,fontsize=14)
-axs[0].set_ylim([-0.2,0.2])
+axs[0].set_ylim([-0.2,1.2])
 axs[1].set_ylabel(y_title_function,fontsize=14)
-axs[1].set_ylim([-0.2,0.2])
+axs[1].set_ylim([-0.2,1.2])
 axs[2].set_ylabel(xy_title_function,fontsize=14)
+axs[2].set_ylim([-0.2,1.2])
 axs[2].set_xlabel(t_title_function,fontsize=14)
 
 legend_elements = [
