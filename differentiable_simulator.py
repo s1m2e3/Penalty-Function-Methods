@@ -20,6 +20,9 @@ class Simulator():
         self.coordination_step = True
         self.processing_times = 5.0
         self.gradient_step = 0.5
+        self.num_machines= 0
+        self.num_jobs=0
+        self.num_tasks=0
         self.pheromone_weight = torch.nn.Parameter(torch.ones(1),requires_grad=True)
         self.heuristic_weight = torch.nn.Parameter(torch.ones(1),requires_grad=True)
     
@@ -31,13 +34,12 @@ class Simulator():
             agent_nodes = [self.target_node != agent.node for agent in self.agents]
         arrivals = []
         for agent in self.agents:
-            arrivals.append(self.applyConstraintArrivalTimes(agent.visited_nodes,agent.accumulated_time))
+            arrivals.append(self.applyConstraintArrivalTimes(agent.visited_nodes,agent.accumulated_time,agent.choices))
         arrivals = torch.stack(arrivals,dim=2)
         index = torch.argmin(arrivals.max(dim=1).values.max(dim=0).values).item()
-        print(arrivals[:,:,index])
-        # print(arrivals.shape)
-        input('hipi')
-
+        updates = self.applyGradientDescentLoss(arrivals[:,-1,index].sum())
+        
+        
     def estimateConstraintViolations(self,tuples,arrival_times_sorted):
         matrix = torch.zeros((len(tuples),1))
         for row_index in range(matrix.shape[0]):
@@ -45,7 +47,13 @@ class Simulator():
             second_element_arrival_time = torch.where(arrival_times_sorted[:,2] == tuples[row_index][1])[0]
             matrix[row_index] = matrix[row_index] - arrival_times_sorted[:,1][first_element_arrival_time]-self.processing_times+arrival_times_sorted[:,1][second_element_arrival_time]
         return matrix
-    def applyGradientDescent(self,arrival_times_sorted,constraints_matrix):
+    def applyGradientDescentLoss(self,loss):
+        
+        
+        self.pheromone_weight = self.pheromone_weight -(torch.autograd.grad(loss,self.pheromone_weight,retain_graph=True)[0])
+        self.heuristic_weight = self.heuristic_weight - (torch.autograd.grad(loss,self.heuristic_weight)[0])
+        
+    def applyGradientDescentConstraints(self,arrival_times_sorted,constraints_matrix):
         constraint_violation = torch.nn.functional.softplus(-constraints_matrix).sum()
         update = self.gradient_step*(torch.autograd.grad(constraint_violation,arrival_times_sorted,create_graph=True)[0])
         return update
@@ -55,7 +63,7 @@ class Simulator():
             constraints_matrix = self.estimateConstraintViolations(tuples,arrival_times_sorted)
             if (-constraints_matrix>0).any().item():
                 violated_constraints = torch.where(-constraints_matrix>0)
-                arrival_times_sorted[1:,1]=arrival_times_sorted[1:,1]-self.applyGradientDescent(arrival_times_sorted,constraints_matrix[violated_constraints[0],violated_constraints[1]])[1:,1]
+                arrival_times_sorted[1:,1]=arrival_times_sorted[1:,1]-self.applyGradientDescentConstraints(arrival_times_sorted,constraints_matrix[violated_constraints[0],violated_constraints[1]])[1:,1]
             else:
                 break
         return arrival_times_sorted
@@ -82,27 +90,19 @@ class Simulator():
         ordered_assignments_per_task =  {new_k:v for k,v in ordered_assignments_per_task.items() for new_k in new_keys if str(new_k) in k}
         
         return ordered_assignments_per_task
-    def applyConstraintArrivalTimes(self,route,arrival_times):
+    def applyConstraintArrivalTimes(self,route,arrival_times,choices):
         
-        
+        reshaped_choices = torch.stack(choices).reshape(self.num_tasks,self.num_jobs,self.num_machines)
         ordered_assignments_per_task = self.collectDictionaryFromRoute(route)
+        
         for task in range(arrival_times.shape[1]):
-        # scores = torch.softmax(torch.stack(scores),dim=1)
-        # arrival_times = torch.stack(arrival_times)
-        # one_hot_scores = hard_deterministic_gumbel_softmax(scores)
-        # conflicting_machines = (one_hot_scores.sum(dim=0)>1).nonzero().squeeze()
-        # cols = one_hot_scores[:, conflicting_machines]              # [num_jobs, 3]
-        # indexes_conflicting = torch.stack(torch.where((cols == 1)),dim=1)
-        # for i in set(indexes_conflicting[:,1].tolist()):
-        #     relevant_jobs= torch.where(indexes_conflicting[:,1] == i)[0].tolist()
             for machine in ordered_assignments_per_task[task]:
-                arrival_time_updates = self.updateArrivalTime(ordered_assignments_per_task[task][machine],arrival_times[ordered_assignments_per_task[task][machine],task])
+                machine_index = int(machine.replace('machine_',''))
+                arrival_time_updates = self.updateArrivalTime(ordered_assignments_per_task[task][machine],reshaped_choices[task,ordered_assignments_per_task[task][machine],machine_index]*arrival_times[ordered_assignments_per_task[task][machine],task])
                 arrival_times[ordered_assignments_per_task[task][machine],task] = arrival_times[ordered_assignments_per_task[task][machine],task]+arrival_time_updates
                 if task < arrival_times.shape[1]-1:
                     arrival_times[ordered_assignments_per_task[task][machine],task+1] = arrival_times[ordered_assignments_per_task[task][machine],task+1]+\
                                                                                         arrival_times[ordered_assignments_per_task[task][machine],task]+self.processing_times
-        
-        
         return arrival_times    
 
     def updateArrivalTimesAgents(self,agents,arrival_times):
@@ -189,6 +189,7 @@ class Agent():
         self.pheromone_deposit = torch.nn.Parameter(torch.ones(1),requires_grad=True)
         self.accumulated_cost = torch.tensor(0.0)
         self.final_node = None
+        self.choices=[]
 
     def accumulatedTimeVector(self,num_jobs,num_tasks):
         self.accumulated_time = torch.zeros(size=(num_jobs,num_tasks),requires_grad=True)+torch.abs(torch.rand(size=(num_jobs,num_tasks)))
@@ -206,12 +207,16 @@ class Agent():
                             (torch.sum(pheromones_vector**simulator.pheromone_weight*heuristic_vector**simulator.heuristic_weight)+1e-5)
         probabilities = probabilities.masked_fill(visited_mask,0.0)
         return probabilities
+    def storeChoices(self,choice):
+        self.choices.append(choice)
 
     def stepChoice(self,simulator,probabilities):
         idx,crow,cols = self.getSparseMatrixData(simulator)
         vals_heuristic = simulator.heuristic_matrix.values()
         heuristic_vector = vals_heuristic[crow[idx]:crow[idx+1]]
         choice = torch.nn.functional.gumbel_softmax(probabilities,dim=-1,hard=True)
+        if choice.shape[0]>1: 
+            self.storeChoices(choice)
         next_node = cols[crow[idx]:crow[idx+1]][choice.argmax().item()].item()
         self.accumulated_cost = self.accumulated_cost + (heuristic_vector*choice).sum()
         self.updateNode(simulator.idx_to_node[next_node],next_node)    

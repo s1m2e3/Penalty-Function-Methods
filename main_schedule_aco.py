@@ -24,6 +24,9 @@ S.addGraph(G)
 S.addAdjacencyMatrix()
 S.addPheromoneMatrix()
 S.addHeuristicMatrix()
+S.num_jobs = number_of_jobs
+S.num_tasks = number_of_tasks_per_job
+S.num_machines = number_of_machines_per_task
 S.target_node = 'finish_task_'+str(number_of_tasks_per_job-1)
 
 agents = [Agent() for _ in range(num_agents_batches)]
