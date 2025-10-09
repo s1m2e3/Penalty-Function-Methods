@@ -5,39 +5,36 @@ import torch
 from jobshop_utils import createEdgesJobShop
 
 
-number_of_machines_per_task = 3
+number_of_machines_per_task = 4
 number_of_tasks_per_job = 3
-number_of_jobs = 8
+number_of_jobs = 10
 num_agents_batches = 5
 
 edges = createEdgesJobShop(number_of_machines_per_task, number_of_tasks_per_job, number_of_jobs)
 
-
 G = nx.DiGraph()
 G.add_edges_from(edges)
 
-pos = nx.shell_layout(G)
-nx.draw_networkx(G, pos, with_labels=True, node_color='lightblue', node_size=5000, edge_color='gray', arrowsize=20, arrows=True)
-
 for edge in G.edges:
     G.edges[edge]['pheromone'] = torch.tensor(0.5)
-    G.edges[edge]['travel_cost'] = torch.rand(size=G.edges[edge]['pheromone'].shape).abs()
+    G.edges[edge]['travel_cost'] = torch.rand(size=G.edges[edge]['pheromone'].shape).abs()*10
     
 S = Simulator()
 S.addGraph(G)
 S.addAdjacencyMatrix()
 S.addPheromoneMatrix()
 S.addHeuristicMatrix()
+S.target_node = 'finish_task_'+str(number_of_tasks_per_job-1)
 
+agents = [Agent() for _ in range(num_agents_batches)]
+for agent in agents :
+    agent.node = 'initiate_task_'+str(0)
+    agent.final_node = 'finish_task_'+str(number_of_tasks_per_job-1)
+    agent.accumulatedTimeVector(number_of_jobs,number_of_tasks_per_job)
+    S.addAgent(agent)
 
-agents = [Agent() for _ in range(number_of_jobs)]
-for job in range(number_of_jobs):
-    agents[job].node = 'initiate_job_'+str(job)
-    agents[job].final_node = 'finish_job_'+str(job)
-    S.addAgent(agents[job])
-
-S.coordination_step = True
-S.step()
+S.coordination_step = False
+S.runOneInnerLoop()
 # S.addAgent(agent)
 # S.addAgent(agent2)
 # agent.step(S)
